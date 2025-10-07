@@ -1,0 +1,7 @@
+.env
+*.pdf
+output/
+__pycache__/
+*.pyc
+.vscode/
+.idea/
