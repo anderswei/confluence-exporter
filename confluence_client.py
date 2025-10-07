@@ -15,7 +15,7 @@ class ConfluenceClient:
         Initialize Confluence client
         
         Args:
-            page_url: Full URL to a Confluence page or folder
+            page_url: Full URL to a Confluence page, folder, or space
             username: Confluence username (email)
             api_token: Confluence API token
         """
@@ -23,8 +23,8 @@ class ConfluenceClient:
         self.api_token = api_token
         self.page_url = page_url
         
-        # Parse the URL to get base URL and page/folder ID
-        self.base_url, self.page_id, self.is_folder = self._parse_confluence_url(page_url)
+        # Parse the URL to get base URL and page/folder/space ID
+        self.base_url, self.page_id, self.is_folder, self.is_space, self.space_key = self._parse_confluence_url(page_url)
         self.api_base = f"{self.base_url}/rest/api"
         
         # Setup session with authentication
@@ -37,25 +37,37 @@ class ConfluenceClient:
     
     def _parse_confluence_url(self, url):
         """
-        Parse Confluence URL to extract base URL and page/folder ID
+        Parse Confluence URL to extract base URL and page/folder/space ID
         
         Args:
-            url: Confluence page or folder URL
+            url: Confluence page, folder, or space URL
             
         Returns:
-            tuple: (base_url, page_id, is_folder)
+            tuple: (base_url, page_id, is_folder, is_space, space_key)
         """
         parsed = urlparse(url)
         base_url = f"{parsed.scheme}://{parsed.netloc}"
         
-        # Try to extract page/folder ID from various Confluence URL formats
+        # Try to extract page/folder/space ID from various Confluence URL formats
         # Format 1: /pages/viewpage.action?pageId=123456
         # Format 2: /display/SPACE/Page+Title (needs lookup)
         # Format 3: /spaces/SPACE/pages/123456/Page+Title
         # Format 4: /spaces/SPACE/folder/123456 (folder)
+        # Format 5: /wiki/spaces/SPACE or /spaces/SPACE (space)
         
         page_id = None
         is_folder = False
+        is_space = False
+        space_key = None
+        
+        # Check if it's a space URL (must check before checking for folders/pages)
+        # Match patterns like /wiki/spaces/SPACEKEY or /spaces/SPACEKEY
+        space_match = re.search(r'/spaces/([A-Z0-9_-]+)(?:/|$)', url, re.IGNORECASE)
+        if space_match and not ('/pages/' in url or '/folder/' in url):
+            space_key = space_match.group(1)
+            is_space = True
+            # For space exports, page_id is not needed
+            return base_url, page_id, is_folder, is_space, space_key
         
         # Check if it's a folder URL
         if '/folder/' in url:
@@ -74,17 +86,18 @@ class ConfluenceClient:
             if match:
                 page_id = match.group(1)
         
-        if not page_id:
+        if not page_id and not is_space:
             # If we can't extract page ID, we'll need to look it up
             # For now, raise an error with helpful message
             raise ValueError(
-                "Could not extract page/folder ID from URL. "
+                "Could not extract page/folder/space ID from URL. "
                 "Please use a URL format like:\n"
                 "  Page: https://your-domain.atlassian.net/wiki/spaces/SPACE/pages/123456/Page+Title\n"
-                "  Folder: https://your-domain.atlassian.net/wiki/spaces/SPACE/folder/123456"
+                "  Folder: https://your-domain.atlassian.net/wiki/spaces/SPACE/folder/123456\n"
+                "  Space: https://your-domain.atlassian.net/wiki/spaces/SPACEKEY"
             )
         
-        return base_url, page_id, is_folder
+        return base_url, page_id, is_folder, is_space, space_key
     
     def _make_request(self, endpoint, params=None):
         """
@@ -578,3 +591,58 @@ class ConfluenceClient:
             all_pages.extend(folder_pages)
         
         return all_pages
+    
+    def get_space_info(self, space_key):
+        """
+        Get information about a space
+        
+        Args:
+            space_key: Space key (e.g., 'ENG', 'PROJ')
+            
+        Returns:
+            dict: Space information including id, key, name
+        """
+        endpoint = f"/wiki/rest/api/space/{space_key}"
+        params = {
+            'expand': 'description.plain,homepage'
+        }
+        return self._make_request(endpoint, params)
+    
+    def get_space_content(self, space_key):
+        """
+        Get all content (pages and folders) in a space
+        
+        Args:
+            space_key: Space key (e.g., 'ENG', 'PROJ')
+            
+        Returns:
+            list: List of all content items in the space
+        """
+        all_content = []
+        start = 0
+        limit = 25
+        
+        while True:
+            endpoint = f"/wiki/rest/api/space/{space_key}/content?depth=root"
+            params = {
+                'limit': limit,
+                'start': start,
+                'expand': 'version'
+            }
+            
+            response = self._make_request(endpoint, params)
+            
+            # The response contains 'page' key with results
+            if 'page' in response and 'results' in response['page']:
+                results = response['page']['results']
+                all_content.extend(results)
+                
+                # Check if there are more pages
+                if len(results) < limit:
+                    break
+                
+                start += limit
+            else:
+                break
+        
+        return all_content

@@ -1,12 +1,14 @@
-# Confluence Page to PDF Exporter
+# Confluence to PDF Exporter
 
-A Python tool to download Confluence pages and all their sub-pages, exporting each as a PDF file.
+A Python tool to download Confluence spaces, folders, or pages with all their sub-pages, exporting each as a PDF file.
 
 ## Features
 
+- **Export entire Confluence spaces** - download all pages from a complete space
 - Download pages from a Confluence folder or page URL
 - Recursively process all subfolders and subdocuments
 - **Preserves folder structure** - creates the same directory hierarchy in output
+- **Space exports create dedicated directories** - space name becomes top-level folder
 - Download a parent page and all its child pages (recursively)
 - **Download attachments** - automatically downloads all attachments for each page
 - Export each page as a well-formatted PDF
@@ -75,9 +77,13 @@ A Python tool to download Confluence pages and all their sub-pages, exporting ea
    python main.py
    ```
 
-2. **Enter the Confluence page or folder URL when prompted:**
+2. **Enter the Confluence page, folder, or space URL when prompted:**
 
    The tool supports URLs in these formats:
+   
+   **Space URLs:**
+   - `https://your-domain.atlassian.net/wiki/spaces/SPACEKEY`
+   - Example: `https://your-domain.atlassian.net/wiki/spaces/ENG`
    
    **Folder URLs:**
    - `https://your-domain.atlassian.net/wiki/spaces/SPACE/folder/123456`
@@ -91,7 +97,8 @@ A Python tool to download Confluence pages and all their sub-pages, exporting ea
 
    The tool will:
    - Connect to Confluence
-   - Detect if you provided a folder or page URL
+   - Detect if you provided a space, folder, or page URL
+   - **For spaces:** Find all pages in the entire space (recursively)
    - **For folders:** Find all pages in the folder and all subfolders (recursively)
    - **For pages:** Download the parent page and find all child pages (recursively)
    - Download all attachments for each page
@@ -102,23 +109,23 @@ A Python tool to download Confluence pages and all their sub-pages, exporting ea
    All exported PDFs will be saved in the `output/` directory.
    
    **Folder Structure:**
+   - For space URLs, a top-level directory with the space name is created
    - For folder URLs, the output directory will mirror the Confluence folder structure
    - Each page's attachments are saved in a folder named `{PageName}_{PageID}_attachments`
    - PDFs include a list of attachments with their locations
    
-   Example output structure:
+   Example output structure for a space export:
    ```
    output/
-   ├── Engineering/
-   │   ├── API_Documentation_123456.pdf
-   │   ├── API_Documentation_123456_attachments/
-   │   │   ├── api_schema.json
-   │   │   └── example_request.txt
-   │   └── Backend/
-   │       ├── Database_Design_789012.pdf
-   │       └── Database_Design_789012_attachments/
-   │           └── erd_diagram.png
-   └── ...
+   └── Engineering/              # Space name directory
+       ├── API_Documentation_123456.pdf
+       ├── API_Documentation_123456_attachments/
+       │   ├── api_schema.json
+       │   └── example_request.txt
+       └── Backend/
+           ├── Database_Design_789012.pdf
+           └── Database_Design_789012_attachments/
+               └── erd_diagram.png
    ```
 
 ## File Structure
@@ -160,7 +167,8 @@ confluence/
 
 ### URL Format Errors
 
-- Make sure the URL includes the page ID or folder ID
+- Make sure the URL includes the space key, page ID, or folder ID
+- For spaces, use: `https://your-domain.atlassian.net/wiki/spaces/SPACEKEY`
 - For folders, use: `https://your-domain.atlassian.net/wiki/spaces/SPACE/folder/FOLDER_ID`
 - For pages, use: `https://your-domain.atlassian.net/wiki/spaces/SPACE/pages/PAGE_ID/Page+Title`
 - You can find the ID in the URL when viewing a page or folder in Confluence
