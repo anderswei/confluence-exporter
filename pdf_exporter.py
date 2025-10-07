@@ -304,6 +304,45 @@ class PDFExporter:
             color: #5E6C84;
             margin-left: 10px;
         }}
+        .version-history-section {{
+            margin-top: 40px;
+            padding: 20px;
+            background-color: #F4F5F7;
+            border-radius: 5px;
+            border-left: 4px solid #6554C0;
+            page-break-before: auto;
+        }}
+        .version-history-title {{
+            font-size: 1.3em;
+            color: #172B4D;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }}
+        .version-history-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9em;
+        }}
+        .version-history-table th {{
+            background-color: #DFE1E6;
+            color: #172B4D;
+            font-weight: 600;
+            padding: 8px 12px;
+            text-align: left;
+            border: 1px solid #C1C7D0;
+        }}
+        .version-history-table td {{
+            padding: 6px 12px;
+            border: 1px solid #DFE1E6;
+            color: #172B4D;
+        }}
+        .version-history-table tr:nth-child(even) {{
+            background-color: #FAFBFC;
+        }}
+        .version-number {{
+            font-weight: 600;
+            color: #6554C0;
+        }}
     </style>
 </head>
 <body>
@@ -452,6 +491,61 @@ class PDFExporter:
         
         return html
     
+    def _create_version_history_html(self, versions):
+        """
+        Create HTML section for version history
+        
+        Args:
+            versions: List of version dictionaries with number, when, by, and message
+            
+        Returns:
+            str: HTML content for version history section
+        """
+        if not versions:
+            return ""
+        
+        html = '<div class="version-history-section">\n'
+        html += '  <div class="version-history-title">📜 Version History</div>\n'
+        html += '  <table class="version-history-table">\n'
+        html += '    <thead>\n'
+        html += '      <tr>\n'
+        html += '        <th>Version</th>\n'
+        html += '        <th>Created</th>\n'
+        html += '        <th>Author</th>\n'
+        html += '      </tr>\n'
+        html += '    </thead>\n'
+        html += '    <tbody>\n'
+        
+        # Sort versions by number descending (newest first)
+        sorted_versions = sorted(versions, key=lambda v: v.get('number', 0), reverse=True)
+        
+        for version in sorted_versions:
+            version_num = version.get('number', 'N/A')
+            when = version.get('when', 'Unknown')
+            by = version.get('by', 'Unknown')
+            
+            # Format the date to be more readable
+            try:
+                from datetime import datetime
+                if when and when != 'Unknown':
+                    # Parse ISO format date
+                    dt = datetime.fromisoformat(when.replace('Z', '+00:00'))
+                    when = dt.strftime('%Y-%m-%d %H:%M:%S')
+            except Exception:
+                pass  # Keep original format if parsing fails
+            
+            html += f'      <tr>\n'
+            html += f'        <td><span class="version-number">v{version_num}</span></td>\n'
+            html += f'        <td>{when}</td>\n'
+            html += f'        <td>{by}</td>\n'
+            html += f'      </tr>\n'
+        
+        html += '    </tbody>\n'
+        html += '  </table>\n'
+        html += '</div>\n'
+        
+        return html
+    
     def export_to_pdf(self, page_info, html_content, attachments=None, relative_path='', confluence_client=None, owners=None):
         """
         Export a Confluence page to PDF
@@ -518,6 +612,18 @@ class PDFExporter:
         if attachments and len(attachments) > 0:
             attachments_html = self._create_attachments_html(attachments, attachments_folder_name)
             cleaned_content += attachments_html
+        
+        # Add version history section if confluence_client is available
+        if confluence_client:
+            try:
+                print(f"    Fetching version history...")
+                versions = confluence_client.get_version_history(page_id)
+                if versions:
+                    version_history_html = self._create_version_history_html(versions)
+                    cleaned_content += version_history_html
+                    print(f"    ✓ Added {len(versions)} version(s) to history")
+            except Exception as e:
+                print(f"    Note: Could not add version history: {str(e)}")
         
         # Create complete HTML document
         full_html = self._create_html_template(title, cleaned_content)

@@ -140,6 +140,53 @@ class ConfluenceClient:
         
         return ""
     
+    def get_version_history(self, page_id):
+        """
+        Get full version history for a page
+        
+        Args:
+            page_id: Confluence page ID
+            
+        Returns:
+            list: List of version dictionaries with version number, when created, and who created it
+        """
+        versions = []
+        
+        try:
+            start = 0
+            limit = 100
+            
+            while True:
+                endpoint = f"/wiki/rest/api/content/{page_id}/version"
+                params = {
+                    'limit': limit,
+                    'start': start,
+                    'expand': 'by'
+                }
+                
+                response = self._make_request(endpoint, params)
+                results = response.get('results', [])
+                
+                for version in results:
+                    version_info = {
+                        'number': version.get('number', 0),
+                        'when': version.get('when', ''),
+                        'by': version.get('by', {}).get('displayName', 'Unknown'),
+                        'message': version.get('message', '')
+                    }
+                    versions.append(version_info)
+                
+                # Check if there are more versions
+                if len(results) < limit:
+                    break
+                
+                start += limit
+            
+        except Exception as e:
+            print(f"      Note: Could not retrieve version history: {str(e)}")
+        
+        return versions
+    
     def get_page_properties(self, page_id):
         """
         Get page properties including all contributors from version history
