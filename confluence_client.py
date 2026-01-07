@@ -3,8 +3,11 @@ Confluence API Client
 Handles communication with Confluence REST API
 """
 import re
+import logging
 import requests
 from urllib.parse import urlparse, urljoin
+
+logger = logging.getLogger(__name__)
 
 
 class ConfluenceClient:
@@ -196,7 +199,7 @@ class ConfluenceClient:
                 start += limit
             
         except Exception as e:
-            print(f"      Note: Could not retrieve version history: {str(e)}")
+            logger.debug(f"Could not retrieve version history: {str(e)}")
         
         return versions
     
@@ -247,7 +250,7 @@ class ConfluenceClient:
                                         contributor_info['profilePicture'] = user['profilePicture'].get('path', '')
                                     
                                     contributors[account_id] = contributor_info
-                                    print(f"      Contributor: {contributor_info['displayName']}")
+                                    logger.debug(f"Contributor: {contributor_info['displayName']}")
                 
                 # Check if we've processed all history
                 # The history endpoint doesn't return a paginated list in the same way
@@ -275,7 +278,7 @@ class ConfluenceClient:
                         if 'profilePicture' in creator:
                             contributor_info['profilePicture'] = creator['profilePicture'].get('path', '')
                         contributors[account_id] = contributor_info
-                        print(f"      Creator: {contributor_info['displayName']}")
+                        logger.debug(f"Creator: {contributor_info['displayName']}")
                 
                 # Add last modifier
                 if 'version' in page_data and 'by' in page_data['version']:
@@ -289,17 +292,17 @@ class ConfluenceClient:
                         if 'profilePicture' in modifier:
                             contributor_info['profilePicture'] = modifier['profilePicture'].get('path', '')
                         contributors[account_id] = contributor_info
-                        print(f"      Last modifier: {contributor_info['displayName']}")
+                        logger.debug(f"Last modifier: {contributor_info['displayName']}")
             except Exception as e:
-                print(f"      Note: Could not retrieve creator/modifier info: {str(e)}")
+                logger.debug(f"Could not retrieve creator/modifier info: {str(e)}")
             
             # Convert contributors dict to list
             all_properties['contributors'] = list(contributors.values())
-            print(f"      Total unique contributors: {len(contributors)}")
-            print(f"      Contributors: {[c['displayName'] for c in all_properties['contributors']]}")
+            logger.debug(f"Total unique contributors: {len(contributors)}")
+            logger.debug(f"Contributors: {[c['displayName'] for c in all_properties['contributors']]}")
                 
         except Exception as e:
-            print(f"      Note: Could not retrieve page history: {str(e)}")
+            logger.debug(f"Could not retrieve page history: {str(e)}")
             all_properties['contributors'] = []
         
         return all_properties
@@ -363,8 +366,9 @@ class ConfluenceClient:
         
         # Get subfolders
         subfolders = self._get_folder_contents(folder_id, 'folder')
-        print(f"Found {len(subfolders)} subfolder(s) in folder ID {folder_id}")
-        subfolders.foreach(lambda sf: print(f"  Subfolder: {sf.get('title', 'Unnamed')} (ID: {sf.get('id')})"))
+        logger.debug(f"Found {len(subfolders)} subfolder(s) in folder ID {folder_id}")
+        for sf in subfolders:
+            logger.debug(f"Subfolder: {sf.get('title', 'Unnamed')} (ID: {sf.get('id')})")
         
         # Recursively get pages from subfolders
         for subfolder in subfolders:
@@ -481,15 +485,15 @@ class ConfluenceClient:
         try:
             # Get the download URL
             if '_links' not in attachment or 'download' not in attachment['_links']:
-                print(f"      ✗ No download link found in attachment data")
+                logger.warning("No download link found in attachment data")
                 return False
                 
             download_url = "/wiki" + attachment['_links']['download']
-            print (f"      Download URL: {download_url}")
+            logger.debug(f"Download URL: {download_url}")
             # Make it absolute
             if not download_url.startswith('http'):
                 download_url = urljoin(self.base_url, download_url)
-            print (f"      Absolute Download URL: {download_url}")
+            logger.debug(f"Absolute Download URL: {download_url}")
             # Download the file
             response = self.session.get(download_url, stream=True)
             response.raise_for_status()
@@ -502,10 +506,10 @@ class ConfluenceClient:
             
             return True
         except requests.exceptions.HTTPError as e:
-            print(f"      ✗ HTTP Error {e.response.status_code}: {str(e)}")
+            logger.warning(f"HTTP Error {e.response.status_code}: {str(e)}")
             return False
         except Exception as e:
-            print(f"      ✗ Error downloading attachment: {str(e)}")
+            logger.warning(f"Error downloading attachment: {str(e)}")
             return False
     
     def get_pages_in_folder_with_structure(self, folder_id, parent_path=''):

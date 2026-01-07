@@ -77,6 +77,13 @@ A Python tool to download Confluence spaces, folders, or pages with all their su
    python main.py
    ```
 
+   **Enable debug logging** (optional):
+   
+   For more detailed output including all discovered pages, attachments, and contributors:
+   ```bash
+   python main.py --debug
+   ```
+
 2. **Enter the Confluence page, folder, or space URL when prompted:**
 
    The tool supports URLs in these formats:
@@ -87,7 +94,7 @@ A Python tool to download Confluence spaces, folders, or pages with all their su
    
    **Folder URLs:**
    - `https://your-domain.atlassian.net/wiki/spaces/SPACE/folder/123456`
-   - Example: `https://tigertext.atlassian.net/wiki/spaces/ENG/folder/3784114204`
+   - Example: `https://yourdomain.atlassian.net/wiki/spaces/ENG/folder/3784114204`
    
    **Page URLs:**
    - `https://your-domain.atlassian.net/wiki/spaces/SPACE/pages/123456/Page+Title`
@@ -164,6 +171,31 @@ confluence/
 - Check network connectivity if downloads fail
 - Verify you have permission to access attachments
 - Check available disk space for large attachment collections
+- Video files (.mp4, .mov, .avi, etc.) are automatically skipped to save space and time
+
+## Logging Levels
+
+The tool uses structured logging with different verbosity levels:
+
+### Default (INFO level)
+- Shows main progress: connecting, discovering pages, exporting
+- Displays page export progress with counter (e.g., `[1/10] Exporting: Page Title`)
+- Shows completion status and errors
+- Indicates skipped files (already exists, video attachments)
+
+### Debug Mode (`--debug` flag)
+Includes all INFO messages plus:
+- Individual page discoveries with paths
+- Contributor and attachment details
+- Version history information
+- Download URLs and detailed attachment processing
+- Folder structure traversal details
+
+**When to use debug mode:**
+- Troubleshooting export issues
+- Verifying correct page discovery
+- Checking attachment processing
+- Understanding folder hierarchy processing
 
 ### URL Format Errors
 

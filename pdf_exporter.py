@@ -5,10 +5,13 @@ Converts Confluence HTML content to PDF files
 import os
 import re
 import base64
+import logging
 from io import BytesIO
 from urllib.parse import urljoin
 from weasyprint import HTML, CSS
 from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 
 class PDFExporter:
@@ -448,7 +451,7 @@ class PDFExporter:
             
             return data_url
         except Exception as e:
-            print(f"      Warning: Could not download profile picture from {profile_pic_path}: {str(e)}")
+            logger.debug(f"Could not download profile picture from {profile_pic_path}: {str(e)}")
             return None
     
     def _create_attachments_html(self, attachments, attachments_folder_name):
@@ -558,7 +561,7 @@ class PDFExporter:
             confluence_client: ConfluenceClient instance for downloading attachments (optional)
             owners: List or string of page owners (optional)
         """
-        print(f"  Exporting page ID {page_info.get('id')} - '{page_info.get('title')}'  - owners: {owners}")
+        logger.debug(f"Exporting page ID {page_info.get('id')} - '{page_info.get('title')}'")
         # Get page title and create filename
         title = page_info.get('title', 'Untitled')
         page_id = page_info.get('id', 'unknown')
@@ -574,6 +577,12 @@ class PDFExporter:
         filename = f"{self._sanitize_filename(title)}_{page_id}.pdf"
         filepath = os.path.join(output_subdir, filename)
         
+        # Check if PDF already exists
+        if os.path.exists(filepath):
+            relative_output = os.path.relpath(filepath, self.output_dir)
+            logger.info(f"⊘ Skipped (already exists): {relative_output}")
+            return
+        
         # Handle attachments if present
         attachments_folder_name = None
         if attachments and len(attachments) > 0:
@@ -583,16 +592,23 @@ class PDFExporter:
             os.makedirs(attachments_dir, exist_ok=True)
             
             # Download attachments
-            print(f"    Downloading {len(attachments)} attachment(s)...")
+            logger.debug(f"Downloading {len(attachments)} attachment(s)...")
+            video_extensions = ('.mp4', '.mov', '.avi', '.mkv', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp')
             for att in attachments:
                 att_filename = att.get('title', 'unknown')
+                
+                # Skip video files
+                if att_filename.lower().endswith(video_extensions):
+                    logger.warning(f"⊘ Skipped (video file): {att_filename}")
+                    continue
+                
                 att_filepath = os.path.join(attachments_dir, att_filename)
                 
                 if confluence_client:
                     if confluence_client.download_attachment(att, att_filepath):
-                        print(f"      ✓ {att_filename}")
+                        logger.info(f"✓ Downloaded: {att_filename}")
                     else:
-                        print(f"      ✗ Failed: {att_filename}")
+                        logger.warning(f"✗ Failed to download: {att_filename}")
         
         # Clean HTML content
         cleaned_content = self._clean_html(html_content)
@@ -616,14 +632,14 @@ class PDFExporter:
         # Add version history section if confluence_client is available
         if confluence_client:
             try:
-                print(f"    Fetching version history...")
+                logger.debug(f"Fetching version history...")
                 versions = confluence_client.get_version_history(page_id)
                 if versions:
                     version_history_html = self._create_version_history_html(versions)
                     cleaned_content += version_history_html
-                    print(f"    ✓ Added {len(versions)} version(s) to history")
+                    logger.debug(f"✓ Added {len(versions)} version(s) to history")
             except Exception as e:
-                print(f"    Note: Could not add version history: {str(e)}")
+                logger.debug(f"Could not add version history: {str(e)}")
         
         # Create complete HTML document
         full_html = self._create_html_template(title, cleaned_content)
@@ -632,11 +648,12 @@ class PDFExporter:
         try:
             HTML(string=full_html).write_pdf(filepath)
             relative_output = os.path.relpath(filepath, self.output_dir)
-            print(f"  ✓ Saved: {relative_output}")
-        except Exception as e:
-            print(f"  ✗ Error saving {filename}: {str(e)}")
-            # Save HTML for debugging if PDF generation fails
+                        # Save HTML for debugging if PDF generation fails
             html_filepath = filepath.replace('.pdf', '.html')
             with open(html_filepath, 'w', encoding='utf-8') as f:
                 f.write(full_html)
-            print(f"  → HTML saved for debugging: {html_filepath}")
+            logger.debug(f"→ HTML saved for debugging: {html_filepath}")
+            logger.debug(f"✓ Saved: {relative_output}")
+        except Exception as e:
+            logger.error(f"✗ Error saving {filename}: {str(e)}")
+
